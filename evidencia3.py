@@ -212,14 +212,73 @@ def juegoMasBarato():
 
 
 def juegoMenosVendidoPS5():
-    print('juego menos vendido PS5')
+    database = conexionMongo()
+    if database is None:
+        return  # Si no se pudo conectar, salir de la función
+
+    ventasCollection = database['ventas']
+    juegosCollection = database['juegos']
+
+    try:
+        # Obtener todos los registros de ventas
+        ventas = ventasCollection.find()
+
+        # Contar las ventas por id_juego
+        contarJuegos = {}
+
+        for venta in ventas:
+            id_juego = venta.get("id_juego")
+            if id_juego in contarJuegos:
+                contarJuegos[id_juego] += 1
+            else:
+                contarJuegos[id_juego] = 1
+
+        if not contarJuegos:
+            print("No hay registros de ventas.")
+            return
+
+        # Filtrar juegos que están disponibles SOLO en PS5 y Steam
+        juegos_validos = juegosCollection.find({
+            "plataformas": {"$all": ["PS5", "Steam"]},  # debe contener PS5 y Steam
+            "$expr": {"$eq": [{"$size": "$plataformas"}, 2]}  # y exactamente 2 plataformas
+        })
+
+        # Crear una lista de IDs válidos
+        ids_juegos_validos = [juego["id_juego"] for juego in juegos_validos]
+
+        # Filtrar contarJuegos solo con los juegos válidos
+        contarJuegosFiltrados = {id_juego: contarJuegos.get(id_juego, 0) for id_juego in ids_juegos_validos}
+
+        if not contarJuegosFiltrados:
+            print("No hay ventas registradas de juegos disponibles solo en PS5 y Steam.")
+            return
+
+        # Encontrar el id_juego con menos ventas
+        id_menos_vendido = min(contarJuegosFiltrados, key=contarJuegosFiltrados.get)
+        total_ventas = contarJuegosFiltrados[id_menos_vendido]
+
+        # Buscar el título del juego en la colección 'juegos'
+        juego = juegosCollection.find_one({"id_juego": id_menos_vendido})
+
+        if juego:
+            titulo = juego.get("titulo", "Título no encontrado")
+            print(f"Juego menos vendido (solo en PS5 y Steam): {titulo}")
+            print(f"Total de ventas: {total_ventas}")
+        else:
+            print(f"No se encontró el juego con id_juego {id_menos_vendido} en la colección 'juegos'.")
+
+    except Exception as error:
+        print("Ocurrió un error al consultar las ventas o juegos:", error)
+
 
 def insertarVenta():
     database = conexionMongo()
     if database is None:
         return  # Si no se pudo conectar, salir de la función
 
-    collection = database['ventas']  # Usar la colección 'ventas'
+    ventas_collection = database['ventas']  # Colección de ventas
+    juegos_collection = database['juegos']  # Colección de juegos
+
     try:
         # Capturar los datos de la venta
         id_venta = int(input("ID de la venta: "))
@@ -227,18 +286,46 @@ def insertarVenta():
         fecha_venta = input("Fecha de la venta (dd/mm/yyyy): ")
         total_venta = float(input("Total de la venta: "))
 
-        nueva_venta = {  # Crear el documento con los datos ingresados
+        # Verificar si el juego existe en el catálogo
+        juego = juegos_collection.find_one({"id_juego": id_juego})
+        if juego is None:
+            print(f"No se encontró ningún juego con ID {id_juego} en el catálogo.")
+            return
+
+        # Verificar si hay stock disponible
+        stock_actual = juego.get("stock_disponible", 0)
+        if stock_actual <= 0:
+            print(f"Ya no queda stock disponible para: {juego.get('titulo', 'Sin título')}.")
+            return
+
+        # Insertar la venta en la colección de ventas
+        nueva_venta = {
             "id_venta": id_venta,
             "id_juego": id_juego,
             "fecha_venta": fecha_venta,
             "total_venta": total_venta
         }
 
-        resultado = collection.insert_one(nueva_venta)  # Insertar en la colección
+        resultado = ventas_collection.insert_one(nueva_venta)
         print("¡Venta agregada exitosamente!")
         print("ID de la nueva venta:", resultado.inserted_id)
+
+        # Actualizar el stock del juego
+        nuevo_stock = stock_actual - 1
+        if nuevo_stock > 0:
+            juegos_collection.update_one(
+                {"id_juego": id_juego},
+                {"$set": {"stock_disponible": nuevo_stock}}
+            )
+            print(f"Stock actualizado: '{juego.get('titulo')}': {nuevo_stock} piezas")
+        else:
+            # Si el stock es 0, eliminar el juego del catálogo
+            juegos_collection.delete_one({"id_juego": id_juego})
+            print(f"El juego '{juego.get('titulo')}' se agotó y fue eliminado del catálogo.")
+
     except Exception as error:
-        print("Ocurrió un error al insertar la venta:", error)
+        print("Ocurrió un error al insertar la venta o actualizar el catálogo:", error)
+
 
 
 
