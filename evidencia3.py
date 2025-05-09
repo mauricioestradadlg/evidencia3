@@ -1,5 +1,6 @@
 from pymongo import MongoClient, errors
 
+# funcion para conectarse a la base de datos
 def conexionMongo():
     try:
         client = MongoClient('mongodb://localhost:27017/', serverSelectionTimeoutMS=5000)
@@ -11,6 +12,7 @@ def conexionMongo():
         print("No pudiste conectarte a MongoDB:", error)  
         return None 
 
+# funcion para crear la base de datos y las colecciones
 def crearBaseDeDatos():
     database = conexionMongo()
     if database is None:
@@ -18,7 +20,7 @@ def crearBaseDeDatos():
     juegos_collection = database['juegos']
     ventas_collection = database['ventas']
     
-    # Datos de la tabla de juegos
+    # Diccionario coleccion juegos
     juegos_data = [
         {
             "id_juego": 1000,
@@ -82,7 +84,7 @@ def crearBaseDeDatos():
         }
     ]
 
-    # Datos de la tabla de ventas
+    # Diccionario coleccion ventas
     ventas_data = [
         {
             "id_venta": 2000,
@@ -123,14 +125,14 @@ def crearBaseDeDatos():
     ]
 
     try:
-        # Insertar datos solo si las colecciones están vacías
+        # Insertar datos solo si la coleccion de juegos es null
         if juegos_collection.count_documents({}) == 0:
             juegos_collection.insert_many(juegos_data)
             print("Colección 'juegos' creada y datos insertados.")
         else:
             print("La colección 'juegos' ya tiene datos.")
-
-        if ventas_collection.count_documents({}) == 0:
+        # Insertar datos solo si la coleccion de ventas es null
+        if ventas_collection.count_documents({}) == 0: 
             ventas_collection.insert_many(ventas_data)
             print("Colección 'ventas' creada y datos insertados.")
         else:
@@ -140,10 +142,11 @@ def crearBaseDeDatos():
         print("Error al insertar los datos:", error)
 
 
-
+# funcion para imprimir linea
 def line():
     print("_____________________________")
 
+# funcion para imprimir espacio
 def space():
     print("\n \n")    
 
@@ -151,7 +154,7 @@ def space():
 def juegoMasVendido():
     database = conexionMongo()
     if database is None:
-        return  # Si no se pudo conectar, salir de la función
+        return  # Si no se pudo conectar, sale de la función
 
     ventas_collection = database['ventas']
     juegos_collection = database['juegos']
@@ -163,6 +166,7 @@ def juegoMasVendido():
         # Contar las ventas por id_juego
         contarJuegos = {}
 
+        # busca todos los registros de ventas mediante un ciclo For contando el id del juego
         for venta in ventas:
             id_juego = venta.get("id_juego")
             if id_juego in contarJuegos:
@@ -174,14 +178,16 @@ def juegoMasVendido():
             print("No hay registros de ventas.")
             return
 
-        # Encontrar el id_juego más vendido
+        # Encontrar el id_juego más vendido mediante la función max
         id_mas_vendido = max(contarJuegos, key=contarJuegos.get)
         total_ventas = contarJuegos[id_mas_vendido]
 
-        # Buscar el título del juego en la colección 'juegos'
+        # Buscar el título del juego en la coleccion de juegos que coincida con el id de la venta
         juego = juegos_collection.find_one({"id_juego": id_mas_vendido})
 
+
         if juego:
+            # parametros: nombre del atributo, valor por defecto si no se encuentra el atributo
             titulo = juego.get("titulo", "Título no encontrado")
             print(f"Juego más vendido del catálogo: {titulo}")
             print(f"Total de ventas: {total_ventas}")
@@ -199,8 +205,9 @@ def juegoMasBarato():
     juegos_collection = database['juegos']
     try:
         # Encontrar el juego con el precio más bajo
-        juego_barato = juegos_collection.find_one(sort=[("precio", 1)])  # ordena por precio ascendente y toma el primero
+        juego_barato = juegos_collection.find_one(sort=[("precio", 1)])  # ordena por precio ascendente y toma el primer valor encontrado
         if juego_barato:
+            # parametros: nombres de atributos, valores por defecto si no se encuentran los atributos
             titulo = juego_barato.get("titulo", "Título no encontrado")
             precio = juego_barato.get("precio", "Precio no disponible")
             print(f"Juego más barato del catálogo: {titulo}")
@@ -226,6 +233,7 @@ def juegoMenosVendidoPS5():
         # Contar las ventas por id_juego
         contarJuegos = {}
 
+        # busca todos los registros de ventas mediante un ciclo For contando el id del juego
         for venta in ventas:
             id_juego = venta.get("id_juego")
             if id_juego in contarJuegos:
@@ -240,24 +248,25 @@ def juegoMenosVendidoPS5():
         # Filtrar juegos que están disponibles SOLO en PS5 y Steam
         juegos_validos = juegosCollection.find({
             "plataformas": {"$all": ["PS5", "Steam"]},  # debe contener PS5 y Steam
-            "$expr": {"$eq": [{"$size": "$plataformas"}, 2]}  # y exactamente 2 plataformas
+            "$expr": {"$eq": [{"$size": "$plataformas"}, 2]}  # nada mas busca los 2 elementos del arreglo correspondientes
         })
 
-        # Crear una lista de IDs válidos
+        # Crear una lista de id's válidos
         ids_juegos_validos = [juego["id_juego"] for juego in juegos_validos]
 
-        # Filtrar contarJuegos solo con los juegos válidos
+        # Filtra la variable contarJuegos solo con los juegos válidos
         contarJuegosFiltrados = {id_juego: contarJuegos.get(id_juego, 0) for id_juego in ids_juegos_validos}
 
+        # condicional en caso de que no haya juegos disponibles solo en PS5 y Steam
         if not contarJuegosFiltrados:
             print("No hay ventas registradas de juegos disponibles solo en PS5 y Steam.")
             return
 
-        # Encontrar el id_juego con menos ventas
+        # Encontrar el id del juego con menos ventas en las plataformas PS5 y Steam
         id_menos_vendido = min(contarJuegosFiltrados, key=contarJuegosFiltrados.get)
         total_ventas = contarJuegosFiltrados[id_menos_vendido]
 
-        # Buscar el título del juego en la colección 'juegos'
+        # Buscar el título del juego en la colección 'juegos' que coincida con el id de la venta
         juego = juegosCollection.find_one({"id_juego": id_menos_vendido})
 
         if juego:
@@ -310,7 +319,7 @@ def insertarVenta():
         print("¡Venta agregada exitosamente!")
         print("ID de la nueva venta:", resultado.inserted_id)
 
-        # Actualizar el stock del juego
+        # Se actualiza el stock del juego vendido (disminuye en 1)
         nuevo_stock = stock_actual - 1
         if nuevo_stock > 0:
             juegos_collection.update_one(
